@@ -1,0 +1,7 @@
+.env
+frontend/node_modules
+frontend/dist
+.pnpm-store
+.go-cache
+.go-mod-cache
+backend/.air
