@@ -129,4 +129,21 @@ A clean `gofmt -l .` run prints no files. See [CONTRIBUTING.md](CONTRIBUTING.md)
 
 Set production values for `MONGO_URI`, `MONGO_DATABASE`, `REDIS_ADDR`, `JWT_SECRET`, `CORS_ORIGIN`, and `VITE_API_URL`. Replace the development JWT secret before deployment. The production host must support WebSocket upgrades for poll live updates and should use managed MongoDB and Redis services.
 
+### Render API setup
+
+The API container does not include MongoDB or Redis. In Render, create or connect these managed services before deploying the API:
+
+1. Create a MongoDB Atlas database and copy its connection string into `MONGO_URI` (for example, `mongodb+srv://...`). Allow the Render service's outbound access in the Atlas network settings.
+2. Create a Redis service and set `REDIS_ADDR` to the Redis host and port supplied by that service. If the provider supplies a Redis URL instead of `host:port`, update the API configuration to use the provider's address format before deploying.
+3. Add these API environment variables in Render:
+   - `APP_ENV=production`
+   - `MONGO_URI=<MongoDB Atlas connection string>`
+   - `MONGO_DATABASE=pulseboard`
+   - `REDIS_ADDR=<managed Redis host:port>`
+   - `JWT_SECRET=<long random secret>`
+   - `CORS_ORIGIN=https://<your-frontend-domain>`
+
+4. Deploy the API and copy its public URL into the frontend build variable `VITE_API_URL`, including `/api`, such as `https://<your-api-domain>/api`.
+5. Configure the frontend domain and API domain to allow WebSocket upgrades. A Render API deployment with no `MONGO_URI` or `REDIS_ADDR` now stops immediately with a clear configuration error instead of attempting `localhost`.
+
 Backend authorization enforces owner permissions, passwords are bcrypt hashed, private owner fields are excluded from public responses, and poll input is validated at the API boundary. Production deployments should additionally add rate limiting and a server-side anonymous-voter policy when stronger duplicate-vote prevention is required.

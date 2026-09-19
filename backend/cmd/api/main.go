@@ -4,6 +4,7 @@ import (
 	"context"
 	"log"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/gin-contrib/cors"
@@ -23,10 +24,32 @@ func env(key, fallback string) string {
 	return fallback
 }
 
+func serviceEnv(key, fallback string, production bool) string {
+	if value := os.Getenv(key); value != "" {
+		return value
+	}
+	if production {
+		log.Fatalf("missing required environment variable %s; configure it with the address of the managed service", key)
+	}
+	return fallback
+}
+
+func redisOptions(production bool) *redis.Options {
+	if redisURL := os.Getenv("REDIS_URL"); redisURL != "" {
+		options, err := redis.ParseURL(redisURL)
+		if err != nil {
+			log.Fatalf("invalid REDIS_URL: %v", err)
+		}
+		return options
+	}
+	return &redis.Options{Addr: serviceEnv("REDIS_ADDR", "localhost:6379", production)}
+}
+
 func main() {
+	production := strings.EqualFold(env("APP_ENV", "development"), "production") || strings.EqualFold(os.Getenv("RENDER"), "true")
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	mongoClient, err := mongo.Connect(ctx, options.Client().ApplyURI(env("MONGO_URI", "mongodb://localhost:27017")))
+	mongoClient, err := mongo.Connect(ctx, options.Client().ApplyURI(serviceEnv("MONGO_URI", "mongodb://localhost:27017", production)))
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -37,12 +60,12 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	redisClient := redis.NewClient(&redis.Options{Addr: env("REDIS_ADDR", "localhost:6379")})
+	redisClient := redis.NewClient(redisOptions(production))
 	if err = redisClient.Ping(ctx).Err(); err != nil {
 		log.Fatal(err)
 	}
 
-	app := http.New(mongoClient.Database(env("MONGO_DATABASE", "pulseboard")), redisClient, env("JWT_SECRET", "development-only-secret"))
+	app := http.New(mongoClient.Database(env("MONGO_DATABASE", "pulseboard")), redisClient, serviceEnv("JWT_SECRET", "development-only-secret", production))
 	router := gin.New()
 	configuredOrigin := env("CORS_ORIGIN", "http://localhost:5173")
 	router.Use(gin.Logger(), gin.Recovery(), cors.New(cors.Config{
