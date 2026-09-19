@@ -121,7 +121,7 @@ const TEMPLATE_PRESETS = {
 };
 
 function ThemeToggle() {
-  const [dark, setDark] = useState(() => localStorage.getItem("xpoll_theme") === "dark");
+  const [dark, setDark] = useState(() => localStorage.getItem("xpoll_theme") !== "light");
   useEffect(() => {
     document.documentElement.dataset.theme = dark ? "dark" : "light";
     localStorage.setItem("xpoll_theme", dark ? "dark" : "light");
@@ -1589,7 +1589,9 @@ function PollPageClean({ shareID, logout }) {
         <Notice message={notice} tone="success" />
         <nav className="topbar poll-topbar">
           <a className="brand" href="/">XPoll<span>Board</span></a>
-          <ThemeToggle />
+          <div className="nav-tools poll-nav-actions">
+            <ThemeToggle />
+          </div>
         </nav>
         <section className="private-gate">
           <p className="eyebrow">PRIVATE POLL</p>
@@ -1623,8 +1625,8 @@ function PollPageClean({ shareID, logout }) {
       <nav className="topbar poll-topbar">
         <a className="brand" href="/">XPoll<span>Board</span></a>
         <div className="nav-tools poll-nav-actions">
-          {poll.isOwner && <a className="ghost" href="/" aria-label="Back to dashboard"><FiHome size={14} /> Dashboard</a>}
           <ThemeToggle />
+          {poll.isOwner && <a className="ghost" href="/" aria-label="Back to dashboard"><FiHome size={14} /> Dashboard</a>}
           {readStoredUser() && <ProfileNavButton user={readStoredUser()} onViewProfile={() => navigateTo("/profile")} onSignOut={logout} />}
         </div>
       </nav>

@@ -108,11 +108,7 @@ html { scroll-behavior: smooth; background: var(--bg); }
 body {
   margin: 0;
   min-height: 100vh;
-  background:
-    radial-gradient(circle at top left, rgba(156, 141, 255, 0.22), transparent 24%),
-    radial-gradient(circle at top right, rgba(102, 216, 209, 0.15), transparent 28%),
-    radial-gradient(circle at bottom left, rgba(241, 211, 160, 0.1), transparent 28%),
-    var(--background);
+  background: var(--background);
   color: var(--ink);
 }
 
@@ -553,10 +549,7 @@ html[data-theme="light"] .topbar {
 }
 
 .create-shell {
-  background:
-    radial-gradient(circle at top left, rgba(156, 141, 255, 0.18), transparent 24%),
-    radial-gradient(circle at bottom right, rgba(102, 216, 209, 0.18), transparent 32%),
-    var(--bg);
+  background: var(--bg);
 }
 
 .create-layout {
@@ -675,7 +668,6 @@ html[data-theme="light"] .topbar {
   background: rgba(255, 255, 255, 0.02);
   color: var(--ink);
   font-weight: 700;
-  animation: drift 7s ease-in-out infinite alternate;
 }
 
 .float-card.accent {
@@ -877,11 +869,6 @@ html[data-theme="light"] .topbar {
   grid-template-columns: 1.08fr 0.92fr;
   gap: 40px;
   align-items: center;
-}
-
-@keyframes drift {
-  0% { transform: translateY(0px); }
-  100% { transform: translateY(-8px); }
 }
 
 .hero-demo {
@@ -3383,7 +3370,7 @@ html[data-theme="light"] .app-notice-warning {
 
 @media (max-width: 720px) {
   .poll-topbar {
-    align-items: flex-start;
+    align-items: center;
   }
 
   .poll-topbar .poll-nav-actions {
@@ -3901,9 +3888,9 @@ html[data-theme="dark"] body {
 
 /* Signal grid theme: hard edges, electric color, and controlled motion. */
 :root {
-  --bg: #eef1f5;
+  --bg: #f3f4f6;
   --bg-soft: #dfe6ee;
-  --background: #eef1f5;
+  --background: #f3f4f6;
   --surface: rgba(255, 255, 255, 0.88);
   --surface-elevated: #ffffff;
   --surface-hover: #f6f9fc;
@@ -3937,8 +3924,8 @@ html[data-theme="dark"] body {
 }
 
 html[data-theme="light"] {
-  --bg: #eef1f5;
-  --background: #eef1f5;
+  --bg: #f3f4f6;
+  --background: #f3f4f6;
   --bg-soft: #dfe6ee;
   --surface: rgba(255, 255, 255, 0.9);
   --surface-elevated: #ffffff;
@@ -3964,8 +3951,8 @@ html[data-theme="light"] {
 }
 
 html[data-theme="dark"] {
-  --bg: #0c1725;
-  --background: #0c1725;
+  --bg: #1c1d24;
+  --background: #1c1d24;
   --bg-soft: #12263b;
   --surface: rgba(16, 31, 49, 0.94);
   --surface-elevated: #142a42;
@@ -4003,21 +3990,23 @@ html[data-theme="dark"] {
 
 body {
   overflow-x: hidden;
-  background:
-    linear-gradient(rgba(29, 86, 216, 0.045) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(29, 86, 216, 0.045) 1px, transparent 1px),
-    radial-gradient(circle at 80% 0%, rgba(18, 166, 160, 0.16), transparent 30%),
-    var(--background);
-  background-size: 32px 32px, 32px 32px, auto, auto;
+  background: #e7eef6;
 }
 
 html[data-theme="dark"] body {
-  background:
-    linear-gradient(rgba(111, 156, 255, 0.06) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(111, 156, 255, 0.06) 1px, transparent 1px),
-    radial-gradient(circle at 80% 0%, rgba(88, 215, 208, 0.16), transparent 30%),
-    var(--background);
-  background-size: 32px 32px, 32px 32px, auto, auto;
+  background: #0b2239;
+}
+
+html[data-theme="dark"],
+html[data-theme="dark"] body,
+html[data-theme="dark"] #root,
+html[data-theme="dark"] .landing-page,
+html[data-theme="dark"] .auth-shell,
+html[data-theme="dark"] .dashboard-shell,
+html[data-theme="dark"] .poll-page,
+html[data-theme="dark"] .create-shell,
+html[data-theme="dark"] .profile-page {
+  background-color: #0b2239 !important;
 }
 
 .topbar {
@@ -4181,17 +4170,11 @@ html[data-theme="dark"] body {
   pointer-events: none;
   opacity: 0.06;
   background: repeating-linear-gradient(0deg, transparent 0 3px, var(--accent) 4px, transparent 5px);
-  animation: scanline 12s linear infinite;
 }
 
 @keyframes panel-enter {
   from { opacity: 0; transform: translateY(14px) rotateX(2deg); }
   to { opacity: 1; transform: translateY(0) rotateX(0); }
-}
-
-@keyframes scanline {
-  from { transform: translateY(-12%); }
-  to { transform: translateY(12%); }
 }
 
 @media (prefers-reduced-motion: reduce) {
