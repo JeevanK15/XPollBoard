@@ -33,6 +33,8 @@ type Poll struct {
 	CreatedAt     int64              `bson:"createdAt" json:"createdAt"`
 	Template      string             `bson:"template" json:"template"`
 	Visibility    string             `bson:"visibility" json:"visibility"`
+	AllowMultiple bool               `bson:"allowMultiple" json:"allowMultiple"`
+	MaxSelections int                `bson:"maxSelections" json:"maxSelections"`
 	InviteCode    string             `bson:"inviteCode,omitempty" json:"inviteCode,omitempty"`
 	PasswordHash  string             `bson:"passwordHash,omitempty" json:"-"`
 	AllowComments bool               `bson:"allowComments" json:"allowComments"`

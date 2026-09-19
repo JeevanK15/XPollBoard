@@ -274,9 +274,18 @@ html[data-theme="light"] .toast-danger {
 .brand {
   display: inline-flex;
   align-items: center;
+  gap: 8px;
   font-size: clamp(1.3rem, 2vw, 1.75rem);
   font-weight: 800;
   letter-spacing: -0.08em;
+}
+
+.brand::before {
+  content: "";
+  width: 28px;
+  height: 28px;
+  flex: 0 0 28px;
+  background: url("/brand-mark.svg") center / contain no-repeat;
 }
 
 .brand span {
@@ -321,6 +330,55 @@ html[data-theme="light"] .topbar {
   justify-content: flex-end;
   gap: 10px;
   flex-wrap: wrap;
+}
+
+.mobile-nav-menu {
+  display: none;
+  position: relative;
+  justify-self: end;
+}
+
+.mobile-nav-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 40px;
+  padding: 8px 11px;
+  border: 2px solid var(--ink);
+  background: var(--surface);
+  box-shadow: 1px 1px 0 var(--ink);
+  font-weight: 800;
+}
+
+.mobile-nav-panel {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+  min-width: 190px;
+  padding: 10px;
+  border: 2px solid var(--ink);
+  background: var(--surface-elevated);
+  box-shadow: 5px 5px 0 var(--accent);
+}
+
+.mobile-nav-panel > * {
+  width: 100%;
+  min-height: 40px;
+  justify-content: center;
+}
+
+.mobile-nav-panel .profile-menu-wrap {
+  width: 100%;
+}
+
+.mobile-nav-panel .profile-trigger {
+  width: 100%;
 }
 
 .poll-topbar {
@@ -2251,6 +2309,109 @@ html[data-theme="light"] .app-notice-warning {
   to { opacity: 1; transform: translate(-50%, 0); }
 }
 
+@media (max-width: 720px) {
+  .landing-page > .topbar,
+  .auth-shell > .topbar,
+  .dashboard-shell > .topbar,
+  .create-shell > .topbar,
+  .profile-page > .topbar,
+  .poll-page > .poll-topbar {
+    position: fixed !important;
+    top: 12px !important;
+    left: 50% !important;
+    width: calc(100% - 24px) !important;
+    min-height: 56px !important;
+    margin: 0 !important;
+    padding: 8px 10px !important;
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) auto !important;
+    align-items: center !important;
+    gap: 8px !important;
+    transform: translateX(-50%) !important;
+  }
+
+  .landing-page > .topbar .brand,
+  .auth-shell > .topbar .brand,
+  .dashboard-shell > .topbar .brand,
+  .create-shell > .topbar .brand,
+  .profile-page > .topbar .brand,
+  .poll-page > .poll-topbar .brand {
+    width: auto !important;
+    min-width: 0 !important;
+    font-size: 1rem !important;
+    line-height: 1 !important;
+  }
+
+  .topbar > .nav-tools,
+  .poll-page > .poll-topbar > .poll-nav-actions {
+    display: none !important;
+  }
+
+  .topbar > .mobile-nav-menu,
+  .poll-page > .poll-topbar > .mobile-nav-menu {
+    display: block !important;
+    width: 72px !important;
+  }
+
+  .mobile-nav-trigger {
+    width: 72px !important;
+    height: 40px !important;
+    min-height: 40px !important;
+    padding: 8px !important;
+    font-size: 0.72rem !important;
+  }
+
+  .mobile-nav-panel {
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+    width: min(220px, calc(100vw - 32px)) !important;
+    min-width: 0 !important;
+    gap: 8px !important;
+    padding: 10px !important;
+  }
+
+  .mobile-nav-panel > .theme-toggle,
+  .mobile-nav-panel > a,
+  .mobile-nav-panel > .profile-menu-wrap {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    height: 42px !important;
+    min-height: 42px !important;
+    padding: 8px 10px !important;
+    flex: none !important;
+    white-space: nowrap !important;
+  }
+
+  .mobile-nav-panel > .profile-menu-wrap .profile-trigger {
+    width: 100% !important;
+    height: 42px !important;
+    min-height: 42px !important;
+  }
+
+  .landing-page,
+  .auth-shell,
+  .dashboard-shell,
+  .create-shell,
+  .profile-page,
+  .poll-page {
+    padding-top: 88px !important;
+  }
+
+  .poll-page > .poll-topbar {
+    overflow: visible !important;
+  }
+
+  .poll-page .poll-card-actions .ghost {
+    flex: 0 0 42px !important;
+    width: 42px !important;
+    min-width: 42px !important;
+    height: 42px !important;
+    min-height: 42px !important;
+  }
+}
 @media (max-width: 720px) {
   .app-notice {
     top: 110px;
@@ -4294,6 +4455,16 @@ html[data-theme="dark"] .profile-page {
     justify-content: flex-end;
   }
 
+  .topbar > .nav-tools,
+  .poll-page > .poll-topbar > .poll-nav-actions {
+    display: none;
+  }
+
+  .topbar > .mobile-nav-menu,
+  .poll-page > .poll-topbar > .mobile-nav-menu {
+    display: block;
+  }
+
   .nav-tools > .ghost,
   .nav-tools > .primary,
   .nav-tools > .theme-toggle,
@@ -4498,7 +4669,13 @@ html[data-theme="dark"] .profile-page {
     width: calc(100% - 24px);
   }
 
-  .dashboard-create-fab { display: none; }
+  .dashboard-create-fab {
+    display: inline-flex;
+    right: 18px;
+    bottom: 18px;
+    width: 52px;
+    height: 52px;
+  }
 
   .poll-page > nav {
     position: relative;
@@ -4710,11 +4887,11 @@ html[data-theme="dark"] .profile-page {
     position: fixed;
     top: 12px;
     margin: 0;
-    padding: 0;
+    padding: 10px 12px;
     width: calc(100% - 24px);
     overflow: visible;
-    background: transparent;
-    box-shadow: none;
+    background: color-mix(in srgb, var(--surface-elevated) 96%, transparent);
+    box-shadow: 4px 4px 0 var(--accent);
   }
 
   .poll-page > .poll-topbar .poll-nav-actions {
@@ -4865,5 +5042,68 @@ html[data-theme="dark"] .profile-page {
 
   .poll-page > .poll-topbar .poll-nav-actions > .theme-toggle {
     padding: 8px;
+  }
+}
+
+@media (max-width: 720px) {
+  .topbar,
+  .poll-page > .poll-topbar {
+    grid-template-columns: minmax(0, 1fr) auto;
+    min-height: 56px;
+    padding: 8px 10px;
+    gap: 8px;
+  }
+
+  .topbar .brand,
+  .poll-page > .poll-topbar .brand {
+    width: auto;
+    font-size: 1rem;
+  }
+
+  .mobile-nav-trigger {
+    min-height: 38px;
+    padding: 7px 9px;
+    font-size: 0.72rem;
+  }
+
+  .mobile-nav-panel {
+    top: calc(100% + 7px);
+  }
+
+  .topbar > .nav-tools,
+  .poll-page > .poll-topbar > .poll-nav-actions {
+    display: none !important;
+  }
+
+  .topbar > .mobile-nav-menu,
+  .poll-page > .poll-topbar > .mobile-nav-menu {
+    display: block !important;
+  }
+
+  .mobile-nav-panel .theme-toggle span {
+    display: inline;
+  }
+
+  .poll-page .poll-card-actions {
+    display: flex;
+    justify-content: flex-start;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .poll-page .poll-card-actions .ghost {
+    flex: 0 0 42px;
+    width: 42px;
+    min-width: 42px;
+    height: 42px;
+    min-height: 42px;
+    padding: 8px;
+    font-size: 0;
+  }
+
+  .poll-page .poll-card-actions .ghost svg {
+    width: 17px;
+    height: 17px;
+    flex: 0 0 17px;
   }
 }

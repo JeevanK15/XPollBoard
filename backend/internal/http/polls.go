@@ -2,6 +2,7 @@ package http
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
@@ -26,6 +27,8 @@ type createInput struct {
 	Password      string   `json:"password"`
 	InviteCode    string   `json:"inviteCode"`
 	AllowComments bool     `json:"allowComments"`
+	AllowMultiple bool     `json:"allowMultiple"`
+	MaxSelections int      `json:"maxSelections"`
 }
 
 type updateInput struct {
@@ -36,6 +39,8 @@ type updateInput struct {
 	Password      string         `json:"password"`
 	InviteCode    string         `json:"inviteCode"`
 	AllowComments bool           `json:"allowComments"`
+	AllowMultiple bool           `json:"allowMultiple"`
+	MaxSelections int            `json:"maxSelections"`
 }
 
 type reactionInput struct {
@@ -70,6 +75,11 @@ func (a *App) createPoll(c *gin.Context) {
 	if template == "" {
 		template = "multiple-choice"
 	}
+	maxSelections, err := selectionLimit(in.AllowMultiple, in.MaxSelections, len(in.Options))
+	if err != nil {
+		apiError(c, 400, err.Error())
+		return
+	}
 	options := make([]model.Option, 0, len(in.Options))
 	seen := map[string]bool{}
 	for _, raw := range in.Options {
@@ -91,6 +101,8 @@ func (a *App) createPoll(c *gin.Context) {
 		CreatedAt:     time.Now().Unix(),
 		Template:      template,
 		Visibility:    visibility,
+		AllowMultiple: in.AllowMultiple,
+		MaxSelections: maxSelections,
 		InviteCode:    strings.TrimSpace(in.InviteCode),
 		AllowComments: in.AllowComments,
 		Comments:      []model.Comment{},
@@ -146,6 +158,11 @@ func (a *App) updatePoll(c *gin.Context) {
 		apiError(c, 400, "Question must be 5-280 characters with 2-10 options")
 		return
 	}
+	maxSelections, err := selectionLimit(in.AllowMultiple, in.MaxSelections, len(in.Options))
+	if err != nil {
+		apiError(c, 400, err.Error())
+		return
+	}
 	existing := map[string]model.Option{}
 	for _, option := range poll.Options {
 		existing[option.ID] = option
@@ -179,7 +196,7 @@ func (a *App) updatePoll(c *gin.Context) {
 			return
 		}
 	}
-	if _, err := a.db.Collection("polls").UpdateOne(c, bson.M{"shareId": poll.ShareID, "ownerId": ownerID(c)}, bson.M{"$set": bson.M{"question": strings.TrimSpace(in.Question), "options": updated, "allowComments": in.AllowComments}}); err != nil {
+	if _, err := a.db.Collection("polls").UpdateOne(c, bson.M{"shareId": poll.ShareID, "ownerId": ownerID(c)}, bson.M{"$set": bson.M{"question": strings.TrimSpace(in.Question), "options": updated, "allowComments": in.AllowComments, "allowMultiple": in.AllowMultiple, "maxSelections": maxSelections}}); err != nil {
 		apiError(c, 500, "Could not update poll")
 		return
 	}
@@ -198,7 +215,19 @@ func (a *App) updatePoll(c *gin.Context) {
 	poll.Question = strings.TrimSpace(in.Question)
 	poll.Options = updated
 	poll.AllowComments = in.AllowComments
+	poll.AllowMultiple = in.AllowMultiple
+	poll.MaxSelections = maxSelections
 	c.JSON(http.StatusOK, poll)
+}
+
+func selectionLimit(allowMultiple bool, requested, optionCount int) (int, error) {
+	if !allowMultiple {
+		return 1, nil
+	}
+	if requested < 2 || requested > optionCount {
+		return 0, fmt.Errorf("Maximum selections must be between 2 and the number of choices")
+	}
+	return requested, nil
 }
 func (a *App) addLiveCounts(c *gin.Context, poll *model.Poll) {
 	counts, err := a.cache.HGetAll(c, "poll:"+poll.ShareID).Result()
@@ -257,8 +286,10 @@ func (a *App) accessPoll(c *gin.Context) {
 }
 
 type voteInput struct {
-	OptionID         string `json:"optionId"`
-	PreviousOptionID string `json:"previousOptionId"`
+	OptionID          string   `json:"optionId"`
+	PreviousOptionID  string   `json:"previousOptionId"`
+	OptionIDs         []string `json:"optionIds"`
+	PreviousOptionIDs []string `json:"previousOptionIds"`
 }
 
 func (a *App) getComments(c *gin.Context) {
@@ -364,7 +395,19 @@ func (a *App) vote(c *gin.Context) {
 		return
 	}
 	var in voteInput
-	if c.ShouldBindJSON(&in) != nil || in.OptionID == "" {
+	if c.ShouldBindJSON(&in) != nil {
+		apiError(c, 400, "Select a valid option")
+		return
+	}
+	selected := uniqueIDs(in.OptionIDs)
+	previous := uniqueIDs(in.PreviousOptionIDs)
+	if len(selected) == 0 && in.OptionID != "" {
+		selected = []string{in.OptionID}
+	}
+	if len(previous) == 0 && in.PreviousOptionID != "" {
+		previous = []string{in.PreviousOptionID}
+	}
+	if len(selected) == 0 {
 		apiError(c, 400, "Select a valid option")
 		return
 	}
@@ -374,78 +417,110 @@ func (a *App) vote(c *gin.Context) {
 			return
 		}
 	}
-	valid := false
+	validIDs := map[string]bool{}
 	for _, option := range poll.Options {
-		if option.ID == in.OptionID {
-			valid = true
+		validIDs[option.ID] = true
+	}
+	for _, optionID := range append(selected, previous...) {
+		if !validIDs[optionID] {
+			apiError(c, 400, "That option does not belong to this poll")
+			return
 		}
 	}
-	if !valid {
-		apiError(c, 400, "That option does not belong to this poll")
+	if !poll.AllowMultiple && len(selected) != 1 {
+		apiError(c, 400, "This poll accepts one choice")
+		return
+	}
+	maxSelections := poll.MaxSelections
+	if maxSelections < 1 {
+		maxSelections = 1
+	}
+	if len(selected) > maxSelections {
+		apiError(c, 400, fmt.Sprintf("Choose up to %d options", maxSelections))
 		return
 	}
 	if !poll.Active {
 		apiError(c, 409, "This poll is closed")
 		return
 	}
-	if in.PreviousOptionID != "" && in.PreviousOptionID != in.OptionID {
-		previousValid := false
-		for _, option := range poll.Options {
-			if option.ID == in.PreviousOptionID {
-				previousValid = true
-				break
-			}
-		}
-		if !previousValid {
-			apiError(c, 400, "Previous option does not belong to this poll")
-			return
+	selectedSet := map[string]bool{}
+	for _, optionID := range selected {
+		selectedSet[optionID] = true
+	}
+	removed := make([]string, 0, len(previous))
+	for _, optionID := range previous {
+		if !selectedSet[optionID] {
+			removed = append(removed, optionID)
 		}
 	}
-	if in.PreviousOptionID == in.OptionID {
-		current, err := a.cache.HGet(c, "poll:"+poll.ShareID, in.OptionID).Int64()
-		if err != nil {
+	added := make([]string, 0, len(selected))
+	previousSet := map[string]bool{}
+	for _, optionID := range previous {
+		previousSet[optionID] = true
+	}
+	for _, optionID := range selected {
+		if !previousSet[optionID] {
+			added = append(added, optionID)
+		}
+	}
+	if len(removed) == 0 && len(added) == 0 {
+		c.JSON(200, gin.H{"optionIds": selected})
+		return
+	}
+	for _, optionID := range removed {
+		if _, err := a.cache.HIncrBy(c, "poll:"+poll.ShareID, optionID, -1).Result(); err != nil {
 			apiError(c, 503, "Live voting is temporarily unavailable")
 			return
 		}
-		c.JSON(200, gin.H{"optionId": in.OptionID, "votes": current})
-		return
 	}
-	if in.PreviousOptionID != "" {
-		if _, err := a.cache.HIncrBy(c, "poll:"+poll.ShareID, in.PreviousOptionID, -1).Result(); err != nil {
+	for _, optionID := range added {
+		if _, err := a.cache.HIncrBy(c, "poll:"+poll.ShareID, optionID, 1).Result(); err != nil {
 			apiError(c, 503, "Live voting is temporarily unavailable")
 			return
 		}
 	}
-	votes, err := a.cache.HIncrBy(c, "poll:"+poll.ShareID, in.OptionID, 1).Result()
-	if err != nil {
-		apiError(c, 503, "Live voting is temporarily unavailable")
-		return
+	inc := bson.M{}
+	filters := []interface{}{}
+	for index, optionID := range added {
+		name := fmt.Sprintf("selected%d", index)
+		inc["options.$["+name+"].votes"] = 1
+		filters = append(filters, bson.M{name + ".id": optionID})
 	}
-	update := bson.M{"$inc": bson.M{"options.$[selected].votes": 1}}
-	filters := []interface{}{bson.M{"selected.id": in.OptionID}}
-	if in.PreviousOptionID != "" {
-		update["$inc"].(bson.M)["options.$[previous].votes"] = -1
-		filters = append(filters, bson.M{"previous.id": in.PreviousOptionID})
+	for index, optionID := range removed {
+		name := fmt.Sprintf("previous%d", index)
+		inc["options.$["+name+"].votes"] = -1
+		filters = append(filters, bson.M{name + ".id": optionID})
 	}
-	if _, err = a.db.Collection("polls").UpdateOne(c, bson.M{"shareId": poll.ShareID, "active": true}, update, options.Update().SetArrayFilters(options.ArrayFilters{Filters: filters})); err != nil {
+	if _, err = a.db.Collection("polls").UpdateOne(c, bson.M{"shareId": poll.ShareID, "active": true}, bson.M{"$inc": inc}, options.Update().SetArrayFilters(options.ArrayFilters{Filters: filters})); err != nil {
 		apiError(c, 500, "Could not save vote")
 		return
 	}
 	now := time.Now()
 	_ = a.cache.ZAdd(c, "poll:activity:"+poll.ShareID, redis.Z{Score: float64(now.Unix()), Member: randomID()}).Err()
 	_ = a.cache.ZRemRangeByScore(c, "poll:activity:"+poll.ShareID, "-inf", strconv.FormatInt(now.Add(-15*time.Minute).Unix(), 10)).Err()
-	events := []gin.H{{"optionId": in.OptionID, "votes": votes}}
-	if in.PreviousOptionID != "" {
-		previousVotes, previousErr := a.cache.HGet(c, "poll:"+poll.ShareID, in.PreviousOptionID).Int64()
-		if previousErr == nil {
-			events = append(events, gin.H{"optionId": in.PreviousOptionID, "votes": previousVotes})
+	events := []gin.H{}
+	for _, optionID := range append(added, removed...) {
+		if current, readErr := a.cache.HGet(c, "poll:"+poll.ShareID, optionID).Int64(); readErr == nil {
+			events = append(events, gin.H{"optionId": optionID, "votes": current})
 		}
 	}
 	for _, update := range events {
 		event, _ := json.Marshal(update)
 		_ = a.cache.Publish(c, "poll-events:"+poll.ShareID, event).Err()
 	}
-	c.JSON(201, gin.H{"optionId": in.OptionID, "votes": votes})
+	c.JSON(201, gin.H{"optionIds": selected})
+}
+
+func uniqueIDs(ids []string) []string {
+	seen := map[string]bool{}
+	result := make([]string, 0, len(ids))
+	for _, id := range ids {
+		if id != "" && !seen[id] {
+			seen[id] = true
+			result = append(result, id)
+		}
+	}
+	return result
 }
 func (a *App) insights(c *gin.Context) {
 	poll, err := a.findPoll(c, c.Param("shareID"))

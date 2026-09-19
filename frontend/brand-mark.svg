@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-labelledby="title">
+  <title>XPollBoard logo</title>
+  <rect width="64" height="64" rx="12" fill="#6f9cff"/>
+  <path d="M16 18h7l9 12 9-12h7L35.5 35l12 15h-7l-8.5-11-8.5 11h-7l12-15L16 18Z" fill="#0b2239"/>
+  <path d="M14 53h36" stroke="#58d7d0" stroke-width="4" stroke-linecap="round"/>
+</svg>

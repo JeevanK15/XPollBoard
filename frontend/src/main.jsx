@@ -12,6 +12,7 @@ import {
   FiLink,
   FiLogOut,
   FiLogIn,
+  FiMenu,
   FiMessageCircle,
   FiMoon,
   FiPlus,
@@ -202,6 +203,29 @@ function ProfileNavButton({ user, onViewProfile, onSignOut }) {
   );
 }
 
+function MobileNavMenu({ children }) {
+  const [open, setOpen] = useState(false);
+  const menuRef = React.useRef(null);
+
+  useEffect(() => {
+    const close = (event) => {
+      if (menuRef.current && !menuRef.current.contains(event.target)) setOpen(false);
+    };
+    document.addEventListener("click", close);
+    return () => document.removeEventListener("click", close);
+  }, []);
+
+  return (
+    <div className="mobile-nav-menu" ref={menuRef}>
+      <button className="mobile-nav-trigger" type="button" aria-label="Open navigation menu" aria-expanded={open} onClick={() => setOpen((value) => !value)}>
+        {open ? <FiX size={18} /> : <FiMenu size={18} />}
+        <span>Menu</span>
+      </button>
+      {open && <div className="mobile-nav-panel" onClick={(event) => { if (event.target.closest("a, button")) setOpen(false); }}>{children}</div>}
+    </div>
+  );
+}
+
 function ProfilePage({ logout }) {
   const [user, setUser] = useState(readStoredUser() || { name: "Guest", email: "" });
   const [nameDraft, setNameDraft] = useState(user.name || "Guest");
@@ -277,6 +301,12 @@ function ProfilePage({ logout }) {
           <a className="primary small" href="/create"><FiPlus size={14} /> Create poll</a>
           <ProfileNavButton user={user} onViewProfile={() => navigateTo("/profile")} onSignOut={logout} />
         </div>
+        <MobileNavMenu>
+          <ThemeToggle />
+          <a className="ghost" href="/"><FiHome size={14} /> Dashboard</a>
+          <a className="primary small" href="/create"><FiPlus size={14} /> Create poll</a>
+          <ProfileNavButton user={user} onViewProfile={() => navigateTo("/profile")} onSignOut={logout} />
+        </MobileNavMenu>
       </nav>
 
       <section className="profile-shell">
@@ -384,13 +414,15 @@ function EditPollDialog({ poll, busy, onCancel, onSaved }) {
   const [question, setQuestion] = useState(poll.question);
   const [options, setOptions] = useState(poll.options.map((option) => option.text));
   const [optionIds, setOptionIds] = useState(poll.options.map((option) => option.id));
+  const [allowMultiple, setAllowMultiple] = useState(Boolean(poll.allowMultiple));
+  const [maxSelections, setMaxSelections] = useState(poll.maxSelections || 2);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const submit = async (event) => {
     event.preventDefault();
     setError("");
     try {
-      const updated = await request(`/polls/${poll.shareId}`, { method: "PUT", body: JSON.stringify({ question, options: options.map((text, index) => ({ id: optionIds[index] || "", text })) }) });
+      const updated = await request(`/polls/${poll.shareId}`, { method: "PUT", body: JSON.stringify({ question, options: options.map((text, index) => ({ id: optionIds[index] || "", text })), allowMultiple, maxSelections: allowMultiple ? Math.min(maxSelections, options.length) : 1, allowComments: poll.allowComments }) });
       onSaved(updated);
     } catch (e) {
       setError(e.message);
@@ -453,6 +485,17 @@ function EditPollDialog({ poll, busy, onCancel, onSaved }) {
               )}
             </div>
           ))}
+
+          <label className="field-card checkbox-card">
+            <span>Voting mode</span>
+            <div className="toggle-row">
+              <span className="toggle-copy">Allow multiple choices</span>
+              <button type="button" className={`toggle-switch ${allowMultiple ? "enabled" : ""}`} onClick={() => setAllowMultiple((value) => !value)} aria-label="Toggle multiple choice voting" aria-pressed={allowMultiple}><span className="toggle-knob" /></button>
+            </div>
+            {allowMultiple && <select value={Math.min(maxSelections, options.length)} onChange={(event) => setMaxSelections(Number(event.target.value))} aria-label="Maximum choices per voter">
+              {Array.from({ length: Math.max(1, options.length - 1) }, (_, index) => index + 2).map((value) => <option key={value} value={value}>{value} choices maximum</option>)}
+            </select>}
+          </label>
 
           {error && <p className="error" role="alert">{error}</p>}
 
@@ -524,6 +567,10 @@ function AuthPage({ mode, done }) {
           <ThemeToggle />
           <a className="ghost" href={isSignup ? "/login" : "/signup"}><FiLogIn size={14} /> {isSignup ? "Sign in" : "Create account"}</a>
         </div>
+        <MobileNavMenu>
+          <ThemeToggle />
+          <a className="ghost" href={isSignup ? "/login" : "/signup"}><FiLogIn size={14} /> {isSignup ? "Sign in" : "Create account"}</a>
+        </MobileNavMenu>
       </nav>
 
       <section className="auth-layout">
@@ -581,6 +628,11 @@ function LandingPage() {
           <a className="ghost" href="/login"><FiLogIn size={14} /> Sign in</a>
           <a className="primary small" href="/signup"><FiPlus size={14} /> Create a poll</a>
         </div>
+        <MobileNavMenu>
+          <ThemeToggle />
+          <a className="ghost" href="/login"><FiLogIn size={14} /> Sign in</a>
+          <a className="primary small" href="/signup"><FiPlus size={14} /> Create a poll</a>
+        </MobileNavMenu>
       </nav>
 
       <section className="hero-panel">
@@ -690,6 +742,8 @@ function CreatePollPage({ logout }) {
   const [visibility, setVisibility] = useState("public");
   const [privatePassword, setPrivatePassword] = useState("");
   const [allowComments, setAllowComments] = useState(false);
+  const [allowMultiple, setAllowMultiple] = useState(false);
+  const [maxSelections, setMaxSelections] = useState(2);
   const [notice, setNotice] = useState("");
 
   const applyTemplate = (nextTemplate) => {
@@ -722,6 +776,8 @@ function CreatePollPage({ logout }) {
           visibility,
           password: visibility === "private" ? privatePassword : "",
           allowComments,
+          allowMultiple,
+          maxSelections: allowMultiple ? Math.min(maxSelections, options.length) : 1,
         }),
       });
       navigateTo(`/p/${poll.shareId}`);
@@ -743,6 +799,11 @@ function CreatePollPage({ logout }) {
           <a className="ghost" href="/"><FiHome size={14} /> Dashboard</a>
           <ProfileNavButton user={readStoredUser()} onViewProfile={() => navigateTo("/profile")} onSignOut={logout} />
         </div>
+        <MobileNavMenu>
+          <ThemeToggle />
+          <a className="ghost" href="/"><FiHome size={14} /> Dashboard</a>
+          <ProfileNavButton user={readStoredUser()} onViewProfile={() => navigateTo("/profile")} onSignOut={logout} />
+        </MobileNavMenu>
       </nav>
 
       <div className="create-layout">
@@ -835,6 +896,21 @@ function CreatePollPage({ logout }) {
                   <span className="toggle-knob" />
                 </button>
               </div>
+            </label>
+
+            <label className="field-card checkbox-card">
+              <span>Voting mode</span>
+              <div className="toggle-row">
+                <span className="toggle-copy">Allow voters to choose multiple options</span>
+                <button type="button" className={`toggle-switch ${allowMultiple ? "enabled" : ""}`} onClick={() => setAllowMultiple((value) => !value)} aria-label="Toggle multiple choice voting" aria-pressed={allowMultiple}>
+                  <span className="toggle-knob" />
+                </button>
+              </div>
+              {allowMultiple && (
+                <select value={maxSelections} onChange={(event) => setMaxSelections(Number(event.target.value))} aria-label="Maximum choices per voter">
+                  {Array.from({ length: Math.max(1, options.length - 1) }, (_, index) => index + 2).map((value) => <option key={value} value={value}>{value} choices maximum</option>)}
+                </select>
+              )}
             </label>
 
             <label className="field-card question-box">
@@ -931,7 +1007,7 @@ function Dashboard({ logout }) {
       }
     };
     refresh();
-    const interval = setInterval(refresh, 5000);
+    const interval = setInterval(refresh, 15000);
     return () => {
       mounted = false;
       clearInterval(interval);
@@ -1100,6 +1176,11 @@ function Dashboard({ logout }) {
           <a className="primary small" href="/create"><FiPlus size={14} /> Create poll</a>
           {user && <ProfileNavButton user={user} onViewProfile={() => navigateTo("/profile")} onSignOut={logout} />}
         </div>
+        <MobileNavMenu>
+          <ThemeToggle />
+          <a className="primary small" href="/create"><FiPlus size={14} /> Create poll</a>
+          {user && <ProfileNavButton user={user} onViewProfile={() => navigateTo("/profile")} onSignOut={logout} />}
+        </MobileNavMenu>
       </nav>
 
       <div className="dashboard-notices" aria-live="polite">
@@ -1393,7 +1474,10 @@ function PollPageClean({ shareID, logout }) {
   const [poll, setPoll] = useState(null);
   const [insights, setInsights] = useState(null);
   const [error, setError] = useState("");
-  const [voted, setVoted] = useState(localStorage.getItem(`voted_${shareID}`) || "");
+  const [voted, setVoted] = useState(() => {
+    const stored = localStorage.getItem(`voted_${shareID}`) || "";
+    try { return stored.startsWith("[") ? JSON.parse(stored) : (stored ? [stored] : []); } catch { return stored ? [stored] : []; }
+  });
   const [copied, setCopied] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [pendingDelete, setPendingDelete] = useState(false);
@@ -1424,8 +1508,11 @@ function PollPageClean({ shareID, logout }) {
         const withoutPoll = history.filter((vote) => vote.pollId !== shareID);
         localStorage.setItem("pulseboard_vote_history", JSON.stringify([entry, ...withoutPoll].slice(0, 20)));
       }
-      if (loaded.isOwner) request(`/polls/${shareID}/insights`).then(setInsights).catch(() => {});
-      const commentsData = await request(`/polls/${shareID}/comments`);
+      const [insightsData, commentsData] = await Promise.all([
+        loaded.isOwner ? request(`/polls/${shareID}/insights`).catch(() => null) : Promise.resolve(null),
+        request(`/polls/${shareID}/comments`),
+      ]);
+      if (insightsData) setInsights(insightsData);
       setComments(commentsData.comments || []);
     } catch (e) {
       setError(e.message);
@@ -1486,27 +1573,35 @@ function PollPageClean({ shareID, logout }) {
     catch { setError("Could not copy the poll link"); }
   };
   const vote = async (optionId) => {
-    if (optionId === voted) return;
+    const nextSelected = poll?.allowMultiple
+      ? (voted.includes(optionId) ? voted.filter((id) => id !== optionId) : [...voted, optionId])
+      : [optionId];
+    if (poll?.allowMultiple && nextSelected.length === 0) return;
+    if (poll?.allowMultiple && nextSelected.length > (poll.maxSelections || 1)) {
+      setNotice(`Choose up to ${poll.maxSelections} options`);
+      return;
+    }
+    if (!poll?.allowMultiple && optionId === voted[0]) return;
     if (poll?.allowComments && !localStorage.getItem("pulseboard_token")) {
       redirectToAuth("/login");
       return;
     }
-    const previousOptionId = voted;
+    const previousOptionIds = voted;
     setPoll((current) => {
       if (!current) return current;
       return {
         ...current,
         options: current.options.map((option) => {
-          let nextVotes = option.votes;
-          if (option.id === optionId) nextVotes += 1;
-          if (previousOptionId && option.id === previousOptionId) nextVotes = Math.max(0, nextVotes - 1);
+          let nextVotes = Number(option.votes);
+          if (nextSelected.includes(option.id) && !previousOptionIds.includes(option.id)) nextVotes += 1;
+          if (previousOptionIds.includes(option.id) && !nextSelected.includes(option.id)) nextVotes = Math.max(0, nextVotes - 1);
           return { ...option, votes: nextVotes };
         }),
       };
     });
     try {
-      await request(`/polls/${shareID}/votes`, { method: "POST", body: JSON.stringify({ optionId, previousOptionId }) });
-      localStorage.setItem(`voted_${shareID}`, optionId);
+      await request(`/polls/${shareID}/votes`, { method: "POST", body: JSON.stringify({ optionIds: nextSelected, previousOptionIds }) });
+      localStorage.setItem(`voted_${shareID}`, JSON.stringify(nextSelected));
       const selectedOption = poll?.options.find((option) => option.id === optionId);
       const voteHistory = JSON.parse(localStorage.getItem("pulseboard_vote_history") || "[]");
       const nextVote = {
@@ -1517,12 +1612,12 @@ function PollPageClean({ shareID, logout }) {
       };
       const withoutPoll = voteHistory.filter((entry) => entry.pollId !== shareID);
       localStorage.setItem("pulseboard_vote_history", JSON.stringify([nextVote, ...withoutPoll].slice(0, 20)));
-      setVoted(optionId);
+      setVoted(nextSelected);
       setNotice("Your vote was recorded");
     } catch (e) {
       setPoll((current) => current ? { ...current, options: current.options.map((option) => {
-        if (option.id === optionId && previousOptionId) return { ...option, votes: Math.max(0, Number(option.votes) - 1) };
-        if (previousOptionId && option.id === previousOptionId) return { ...option, votes: Number(option.votes) + 1 };
+        if (nextSelected.includes(option.id) && !previousOptionIds.includes(option.id)) return { ...option, votes: Math.max(0, Number(option.votes) - 1) };
+        if (previousOptionIds.includes(option.id) && !nextSelected.includes(option.id)) return { ...option, votes: Number(option.votes) + 1 };
         return option;
       }) } : current);
       setError(e.message);
@@ -1592,6 +1687,9 @@ function PollPageClean({ shareID, logout }) {
           <div className="nav-tools poll-nav-actions">
             <ThemeToggle />
           </div>
+          <MobileNavMenu>
+            <ThemeToggle />
+          </MobileNavMenu>
         </nav>
         <section className="private-gate">
           <p className="eyebrow">PRIVATE POLL</p>
@@ -1629,6 +1727,11 @@ function PollPageClean({ shareID, logout }) {
           {poll.isOwner && <a className="ghost" href="/" aria-label="Back to dashboard"><FiHome size={14} /> Dashboard</a>}
           {readStoredUser() && <ProfileNavButton user={readStoredUser()} onViewProfile={() => navigateTo("/profile")} onSignOut={logout} />}
         </div>
+        <MobileNavMenu>
+          <ThemeToggle />
+          {poll.isOwner && <a className="ghost" href="/" aria-label="Back to dashboard"><FiHome size={14} /> Dashboard</a>}
+          {readStoredUser() && <ProfileNavButton user={readStoredUser()} onViewProfile={() => navigateTo("/profile")} onSignOut={logout} />}
+        </MobileNavMenu>
       </nav>
 
       <div className={`poll-layout ${showAudienceView ? "poll-layout-full" : "poll-layout-standard"}`}>
@@ -1680,11 +1783,11 @@ function PollPageClean({ shareID, logout }) {
           <section className="poll-card">
           {poll.isOwner && (
             <nav className="poll-card-actions" aria-label="Poll actions">
-              <button className="ghost" onClick={share} aria-label="Share poll"><FiShare2 size={14} /> Share</button>
-              <button className="ghost" onClick={copyLink} aria-label="Copy poll link">{copied ? <><FiCheck size={14} /> Copied</> : <><FiCopy size={14} /> Copy link</>}</button>
-              <button className="ghost" onClick={() => setEditing(true)} aria-label="Edit poll"><FiEdit3 size={14} /> Edit</button>
-              <button className="ghost" disabled={toggling} onClick={togglePoll} aria-label={poll.active ? "Deactivate poll" : "Activate poll"}>{toggling ? <><FiToggleLeft size={14} /> Updating...</> : poll.active ? <><FiToggleRight size={14} /> Deactivate</> : <><FiToggleLeft size={14} /> Activate</>}</button>
-              <button className="ghost danger-button" disabled={deleting} onClick={deletePoll} aria-label="Delete poll"><FiTrash2 size={14} /> {deleting ? "Deleting..." : "Delete"}</button>
+              <button className="ghost" onClick={share} aria-label="Share poll" title="Share poll"><FiShare2 size={14} /> Share</button>
+              <button className="ghost" onClick={copyLink} aria-label="Copy poll link" title="Copy poll link">{copied ? <><FiCheck size={14} /> Copied</> : <><FiCopy size={14} /> Copy link</>}</button>
+              <button className="ghost" onClick={() => setEditing(true)} aria-label="Edit poll" title="Edit poll"><FiEdit3 size={14} /> Edit</button>
+              <button className="ghost" disabled={toggling} onClick={togglePoll} aria-label={poll.active ? "Deactivate poll" : "Activate poll"} title={poll.active ? "Deactivate poll" : "Activate poll"}>{toggling ? <><FiToggleLeft size={14} /> Updating...</> : poll.active ? <><FiToggleRight size={14} /> Deactivate</> : <><FiToggleLeft size={14} /> Activate</>}</button>
+              <button className="ghost danger-button" disabled={deleting} onClick={deletePoll} aria-label="Delete poll" title="Delete poll"><FiTrash2 size={14} /> {deleting ? "Deleting..." : "Delete"}</button>
             </nav>
           )}
 
@@ -1696,11 +1799,11 @@ function PollPageClean({ shareID, logout }) {
             {poll.options.map((option, index) => {
               const percent = total ? Math.round((option.votes / total) * 100) : 0;
               return (
-                <button key={option.id} className={`choice ${voted === option.id ? "selected" : ""}`} disabled={!poll.active} onClick={() => vote(option.id)}>
+                  <button key={option.id} className={`choice ${voted.includes(option.id) ? "selected" : ""}`} disabled={!poll.active} onClick={() => vote(option.id)}>
                   <span className="choice-index">{String(index + 1).padStart(2, "0")}</span>
                   <div className="choice-body">
                     <span className="choice-label">{option.text}</span>
-                    <small>{voted === option.id ? "Your selection" : "Select option"}</small>
+                    <small>{voted.includes(option.id) ? "Your selection" : "Select option"}</small>
                   </div>
                   <b>{percent}%</b>
                   <i style={{ width: `${percent}%` }} />
@@ -1709,7 +1812,7 @@ function PollPageClean({ shareID, logout }) {
             })}
           </div>
 
-          {voted && <p className="thanks">Your vote is in. Choose another option anytime to change your response.</p>}
+          {voted.length > 0 && <p className="thanks">Your vote is in. Choose another option anytime to change your response.</p>}
 
           {poll.allowComments && (
             <div className="comment-thread">
