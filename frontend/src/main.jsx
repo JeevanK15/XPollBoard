@@ -103,7 +103,7 @@ function App() {
     return () => removeEventListener("popstate", f);
   }, []);
   if (route.startsWith("/p/"))
-    return <PollPageClean shareID={route.split("/").pop()} />;
+    return <PollPageClean shareID={route.split("/").pop()} logout={handleLogout} />;
   if (route === "/profile")
     return token ? <ProfilePage logout={handleLogout} /> : <LandingPage />;
   if (route === "/create")
@@ -1389,7 +1389,7 @@ function PollPage({ shareID }) {
   if (!poll) return <main className="poll-page loading">Loading live poll...</main>;
   return <main className="poll-page"><nav><a className="brand" href="/">XPoll<span>Board</span></a><div className="poll-nav-actions"><ThemeToggle /><a className="ghost back-link" href="/">Ã¢â€ Â Back to dashboard</a><button className="ghost" onClick={share}>Share poll Ã¢â€ â€”</button><button className="ghost" onClick={copyLink}>{copied ? "Link copied" : "Copy link"}</button>{poll.isOwner && <><button className="ghost" onClick={() => setEditingPoll(true)}>Edit poll</button><button className="ghost" disabled={toggling} onClick={togglePoll}>{toggling ? "Updating..." : poll.active ? "Deactivate poll" : "Activate poll"}</button><button className="ghost danger-button" disabled={deleting} onClick={deletePoll}>{deleting ? "Deleting..." : "Delete poll"}</button></>}</div></nav><div className="poll-layout"><section className="poll-card"><p className="eyebrow"><i className="live-indicator" /> {poll.active ? "LIVE POLL" : "POLL DEACTIVATED"}</p><h1>{poll.question}</h1><p className="muted">{total} {total === 1 ? "response" : "responses"} Ã‚Â· updates instantly</p><div className="choices">{poll.options.map((option) => { const percent = total ? Math.round((option.votes / total) * 100) : 0; return <button key={option.id} className={`choice ${voted === option.id ? "selected" : ""}`} disabled={!poll.active} onClick={() => vote(option.id)}><span>{option.text}</span>{(voted || poll.isOwner) && <><i style={{ width: `${percent}%` }} /><b>{percent}%</b></>}</button>; })}</div>{voted && <p className="thanks">Your vote is in. Choose another option anytime to change your response.</p>}</section>{poll.isOwner && <div className="results-column"><section className="live-results"><div className="section-heading"><div><p className="eyebrow">LIVE RESULTS</p><h2>Response pulse</h2></div><strong>{total} <small>total votes</small></strong></div>{poll.options.map((option) => { const percent = total ? Math.round((option.votes / total) * 100) : 0; return <div className="result-row" key={option.id}><div><span>{option.text}</span><b>{option.votes} votes Ã‚Â· {percent}%</b></div><div className="result-track"><i style={{ width: `${percent}%` }} /></div></div>})}</section><PollInsights poll={poll} activity={insights?.responsesLastMinute || 0} editing={editingPoll} onEdit={() => setEditingPoll(true)} onCloseEdit={() => setEditingPoll(false)} onSaved={saveEdit} /></div>}</div>{pendingDelete && <DeleteConfirm question={poll.question} busy={deleting} onCancel={() => setPendingDelete(false)} onConfirm={confirmDelete} />}</main>;
 }
-function PollPageClean({ shareID }) {
+function PollPageClean({ shareID, logout }) {
   const [poll, setPoll] = useState(null);
   const [insights, setInsights] = useState(null);
   const [error, setError] = useState("");
@@ -1623,18 +1623,9 @@ function PollPageClean({ shareID }) {
       <nav className="topbar poll-topbar">
         <a className="brand" href="/">XPoll<span>Board</span></a>
         <div className="nav-tools poll-nav-actions">
-          {!poll.isOwner && <ThemeToggle />}
-          {poll.isOwner && (
-            <>
-              <a className="ghost" href="/" aria-label="Back to dashboard"><FiHome size={14} /> Dashboard</a>
-              <button className="ghost" onClick={share} aria-label="Share poll"><FiShare2 size={14} /> Share</button>
-              <button className="ghost" onClick={copyLink} aria-label="Copy poll link">{copied ? <><FiCheck size={14} /> Copied</> : <><FiCopy size={14} /> Copy link</>}</button>
-              <button className="ghost" onClick={() => setEditing(true)} aria-label="Edit poll"><FiEdit3 size={14} /> Edit</button>
-              <button className="ghost" disabled={toggling} onClick={togglePoll} aria-label={poll.active ? "Deactivate poll" : "Activate poll"}>{toggling ? <><FiToggleLeft size={14} /> Updating...</> : poll.active ? <><FiToggleRight size={14} /> Deactivate</> : <><FiToggleLeft size={14} /> Activate</>}</button>
-              <button className="ghost danger-button" disabled={deleting} onClick={deletePoll} aria-label="Delete poll"><FiTrash2 size={14} /> {deleting ? "Deleting..." : "Delete"}</button>
-              <ThemeToggle />
-            </>
-          )}
+          {poll.isOwner && <a className="ghost" href="/" aria-label="Back to dashboard"><FiHome size={14} /> Dashboard</a>}
+          <ThemeToggle />
+          {readStoredUser() && <ProfileNavButton user={readStoredUser()} onViewProfile={() => navigateTo("/profile")} onSignOut={logout} />}
         </div>
       </nav>
 
@@ -1683,7 +1674,18 @@ function PollPageClean({ shareID }) {
           </aside>
         )}
 
-        <section className="poll-card">
+        <div className="poll-main-column">
+          <section className="poll-card">
+          {poll.isOwner && (
+            <nav className="poll-card-actions" aria-label="Poll actions">
+              <button className="ghost" onClick={share} aria-label="Share poll"><FiShare2 size={14} /> Share</button>
+              <button className="ghost" onClick={copyLink} aria-label="Copy poll link">{copied ? <><FiCheck size={14} /> Copied</> : <><FiCopy size={14} /> Copy link</>}</button>
+              <button className="ghost" onClick={() => setEditing(true)} aria-label="Edit poll"><FiEdit3 size={14} /> Edit</button>
+              <button className="ghost" disabled={toggling} onClick={togglePoll} aria-label={poll.active ? "Deactivate poll" : "Activate poll"}>{toggling ? <><FiToggleLeft size={14} /> Updating...</> : poll.active ? <><FiToggleRight size={14} /> Deactivate</> : <><FiToggleLeft size={14} /> Activate</>}</button>
+              <button className="ghost danger-button" disabled={deleting} onClick={deletePoll} aria-label="Delete poll"><FiTrash2 size={14} /> {deleting ? "Deleting..." : "Delete"}</button>
+            </nav>
+          )}
+
           <p className="eyebrow">{poll.active ? "LIVE POLL" : "POLL DEACTIVATED"}</p>
           <h1>{poll.question}</h1>
           <p className="muted">{total} responses · live updates</p>
@@ -1729,7 +1731,8 @@ function PollPageClean({ shareID }) {
               </div>
             </div>
           )}
-        </section>
+          </section>
+        </div>
       </div>
 
       {editing && (

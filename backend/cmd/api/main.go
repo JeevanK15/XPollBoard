@@ -44,7 +44,16 @@ func main() {
 
 	app := http.New(mongoClient.Database(env("MONGO_DATABASE", "pulseboard")), redisClient, env("JWT_SECRET", "development-only-secret"))
 	router := gin.New()
-	router.Use(gin.Logger(), gin.Recovery(), cors.New(cors.Config{AllowOrigins: []string{env("CORS_ORIGIN", "http://localhost:5173")}, AllowMethods: []string{"GET", "POST", "DELETE", "OPTIONS"}, AllowHeaders: []string{"Authorization", "Content-Type"}, AllowCredentials: true, MaxAge: 12 * time.Hour}))
+	configuredOrigin := env("CORS_ORIGIN", "http://localhost:5173")
+	router.Use(gin.Logger(), gin.Recovery(), cors.New(cors.Config{
+		AllowOriginFunc: func(origin string) bool {
+			return origin == configuredOrigin || origin == "http://localhost:5173" || origin == "http://localhost:5174" || origin == "http://127.0.0.1:5173" || origin == "http://127.0.0.1:5174"
+		},
+		AllowMethods:     []string{"GET", "POST", "DELETE", "OPTIONS"},
+		AllowHeaders:     []string{"Authorization", "Content-Type"},
+		AllowCredentials: true,
+		MaxAge:           12 * time.Hour,
+	}))
 	app.Register(router)
 	log.Printf("Pulseboard API listening on :%s", env("PORT", "8080"))
 	if err := router.Run(":" + env("PORT", "8080")); err != nil {
