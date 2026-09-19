@@ -15,11 +15,41 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
+	"golang.org/x/crypto/bcrypt"
 )
 
 type createInput struct {
-	Question string   `json:"question"`
-	Options  []string `json:"options"`
+	Question      string   `json:"question"`
+	Options       []string `json:"options"`
+	Template      string   `json:"template"`
+	Visibility    string   `json:"visibility"`
+	Password      string   `json:"password"`
+	InviteCode    string   `json:"inviteCode"`
+	AllowComments bool     `json:"allowComments"`
+}
+
+type updateInput struct {
+	Question      string         `json:"question"`
+	Options       []updateOption `json:"options"`
+	Template      string         `json:"template"`
+	Visibility    string         `json:"visibility"`
+	Password      string         `json:"password"`
+	InviteCode    string         `json:"inviteCode"`
+	AllowComments bool           `json:"allowComments"`
+}
+
+type reactionInput struct {
+	Emoji string `json:"emoji"`
+}
+
+type commentInput struct {
+	UserName string `json:"userName"`
+	Message  string `json:"message"`
+}
+
+type updateOption struct {
+	ID   string `json:"id"`
+	Text string `json:"text"`
 }
 
 func (a *App) createPoll(c *gin.Context) {
@@ -27,6 +57,18 @@ func (a *App) createPoll(c *gin.Context) {
 	if c.ShouldBindJSON(&in) != nil || len(strings.TrimSpace(in.Question)) < 5 || len(in.Question) > 280 || len(in.Options) < 2 || len(in.Options) > 10 {
 		apiError(c, 400, "Question must be 5-280 characters with 2-10 options")
 		return
+	}
+	visibility := strings.ToLower(strings.TrimSpace(in.Visibility))
+	if visibility == "" {
+		visibility = "public"
+	}
+	if visibility != "public" && visibility != "private" {
+		apiError(c, 400, "Visibility must be public or private")
+		return
+	}
+	template := strings.TrimSpace(in.Template)
+	if template == "" {
+		template = "multiple-choice"
 	}
 	options := make([]model.Option, 0, len(in.Options))
 	seen := map[string]bool{}
@@ -40,7 +82,32 @@ func (a *App) createPoll(c *gin.Context) {
 		seen[key] = true
 		options = append(options, model.Option{ID: randomID()[:8], Text: text})
 	}
-	poll := model.Poll{OwnerID: ownerID(c), ShareID: randomID(), Question: strings.TrimSpace(in.Question), Options: options, Active: true, CreatedAt: time.Now().Unix()}
+	poll := model.Poll{
+		OwnerID:       ownerID(c),
+		ShareID:       randomID(),
+		Question:      strings.TrimSpace(in.Question),
+		Options:       options,
+		Active:        true,
+		CreatedAt:     time.Now().Unix(),
+		Template:      template,
+		Visibility:    visibility,
+		InviteCode:    strings.TrimSpace(in.InviteCode),
+		AllowComments: in.AllowComments,
+		Comments:      []model.Comment{},
+		Reactions:     map[string]int64{"👍": 0, "😄": 0, "🎯": 0, "🚀": 0},
+	}
+	if visibility == "private" {
+		if len(strings.TrimSpace(in.Password)) < 4 {
+			apiError(c, 400, "Private polls need a password of at least 4 characters")
+			return
+		}
+		hash, err := bcrypt.GenerateFromPassword([]byte(in.Password), bcrypt.DefaultCost)
+		if err != nil {
+			apiError(c, 500, "Could not secure private poll")
+			return
+		}
+		poll.PasswordHash = string(hash)
+	}
 	if _, err := a.db.Collection("polls").InsertOne(c, poll); err != nil {
 		apiError(c, 500, "Could not create poll")
 		return
@@ -58,6 +125,80 @@ func (a *App) createPoll(c *gin.Context) {
 		return
 	}
 	c.JSON(201, poll)
+}
+
+func (a *App) updatePoll(c *gin.Context) {
+	poll, err := a.findPoll(c, c.Param("shareID"))
+	if err == mongo.ErrNoDocuments {
+		apiError(c, 404, "Poll not found")
+		return
+	}
+	if err != nil {
+		apiError(c, 500, "Could not load poll")
+		return
+	}
+	if poll.OwnerID != ownerID(c) {
+		apiError(c, 403, "Only the owner can edit this poll")
+		return
+	}
+	var in updateInput
+	if c.ShouldBindJSON(&in) != nil || len(strings.TrimSpace(in.Question)) < 5 || len(in.Question) > 280 || len(in.Options) < 2 || len(in.Options) > 10 {
+		apiError(c, 400, "Question must be 5-280 characters with 2-10 options")
+		return
+	}
+	existing := map[string]model.Option{}
+	for _, option := range poll.Options {
+		existing[option.ID] = option
+	}
+	seen := map[string]bool{}
+	updated := make([]model.Option, 0, len(in.Options))
+	for _, raw := range in.Options {
+		text := strings.TrimSpace(raw.Text)
+		key := strings.ToLower(text)
+		if len(text) < 1 || len(text) > 80 || seen[key] {
+			apiError(c, 400, "Options must be unique and 1-80 characters")
+			return
+		}
+		seen[key] = true
+		if raw.ID != "" {
+			option, ok := existing[raw.ID]
+			if !ok {
+				apiError(c, 400, "That option does not belong to this poll")
+				return
+			}
+			option.Text = text
+			updated = append(updated, option)
+			delete(existing, raw.ID)
+		} else {
+			updated = append(updated, model.Option{ID: randomID()[:8], Text: text})
+		}
+	}
+	for _, removed := range existing {
+		if removed.Votes > 0 {
+			apiError(c, 409, "Options with votes cannot be removed")
+			return
+		}
+	}
+	if _, err := a.db.Collection("polls").UpdateOne(c, bson.M{"shareId": poll.ShareID, "ownerId": ownerID(c)}, bson.M{"$set": bson.M{"question": strings.TrimSpace(in.Question), "options": updated, "allowComments": in.AllowComments}}); err != nil {
+		apiError(c, 500, "Could not update poll")
+		return
+	}
+
+	values := map[string]interface{}{}
+	for _, option := range updated {
+		values[option.ID] = option.Votes
+	}
+	if err := a.cache.HSet(c, "poll:"+poll.ShareID, values).Err(); err != nil {
+		apiError(c, 503, "Poll updated but live cache could not refresh")
+		return
+	}
+	for _, removed := range existing {
+		_ = a.cache.HDel(c, "poll:"+poll.ShareID, removed.ID).Err()
+	}
+	poll.Question = strings.TrimSpace(in.Question)
+	poll.Options = updated
+	poll.AllowComments = in.AllowComments
+	c.JSON(http.StatusOK, poll)
 }
 func (a *App) addLiveCounts(c *gin.Context, poll *model.Poll) {
 	counts, err := a.cache.HGetAll(c, "poll:"+poll.ShareID).Result()
@@ -87,9 +228,129 @@ func (a *App) getPoll(c *gin.Context) {
 	c.JSON(200, poll)
 }
 
+func (a *App) accessPoll(c *gin.Context) {
+	poll, err := a.findPoll(c, c.Param("shareID"))
+	if err == mongo.ErrNoDocuments {
+		apiError(c, 404, "Poll not found")
+		return
+	}
+	if err != nil {
+		apiError(c, 500, "Could not load poll")
+		return
+	}
+	if poll.Visibility != "private" {
+		c.JSON(200, gin.H{"granted": true})
+		return
+	}
+	var in struct {
+		Password string `json:"password"`
+	}
+	if c.ShouldBindJSON(&in) != nil {
+		apiError(c, 400, "Password is required")
+		return
+	}
+	if bcrypt.CompareHashAndPassword([]byte(poll.PasswordHash), []byte(in.Password)) != nil {
+		apiError(c, 403, "This poll is private. Enter the correct password.")
+		return
+	}
+	c.JSON(200, gin.H{"granted": true})
+}
+
 type voteInput struct {
 	OptionID         string `json:"optionId"`
 	PreviousOptionID string `json:"previousOptionId"`
+}
+
+func (a *App) getComments(c *gin.Context) {
+	poll, err := a.findPoll(c, c.Param("shareID"))
+	if err == mongo.ErrNoDocuments {
+		apiError(c, 404, "Poll not found")
+		return
+	}
+	if err != nil {
+		apiError(c, 500, "Could not load comments")
+		return
+	}
+	c.JSON(200, gin.H{"comments": poll.Comments})
+}
+
+func (a *App) addComment(c *gin.Context) {
+	poll, err := a.findPoll(c, c.Param("shareID"))
+	if err == mongo.ErrNoDocuments {
+		apiError(c, 404, "Poll not found")
+		return
+	}
+	if err != nil {
+		apiError(c, 500, "Could not load poll")
+		return
+	}
+	var in commentInput
+	if c.ShouldBindJSON(&in) != nil || len(strings.TrimSpace(in.Message)) < 2 || len(strings.TrimSpace(in.Message)) > 280 {
+		apiError(c, 400, "Comment must be 2-280 characters")
+		return
+	}
+	if poll.AllowComments {
+		if _, ok := a.requestUserID(c); !ok {
+			apiError(c, 401, "Sign in to comment on this poll")
+			return
+		}
+	}
+	name := strings.TrimSpace(in.UserName)
+	if name == "" {
+		name = "Guest"
+	}
+	comment := model.Comment{ID: randomID()[:10], UserName: name, Message: strings.TrimSpace(in.Message), CreatedAt: time.Now().Unix()}
+	poll.Comments = append(poll.Comments, comment)
+	if _, err := a.db.Collection("polls").UpdateOne(c, bson.M{"shareId": poll.ShareID}, bson.M{"$set": bson.M{"comments": poll.Comments}}); err != nil {
+		apiError(c, 500, "Could not save comment")
+		return
+	}
+	c.JSON(201, comment)
+}
+
+func (a *App) getReactions(c *gin.Context) {
+	poll, err := a.findPoll(c, c.Param("shareID"))
+	if err == mongo.ErrNoDocuments {
+		apiError(c, 404, "Poll not found")
+		return
+	}
+	if err != nil {
+		apiError(c, 500, "Could not load reactions")
+		return
+	}
+	if poll.Reactions == nil {
+		poll.Reactions = map[string]int64{"👍": 0, "😄": 0, "🎯": 0, "🚀": 0}
+	}
+	c.JSON(200, gin.H{"reactions": poll.Reactions})
+}
+
+func (a *App) addReaction(c *gin.Context) {
+	poll, err := a.findPoll(c, c.Param("shareID"))
+	if err == mongo.ErrNoDocuments {
+		apiError(c, 404, "Poll not found")
+		return
+	}
+	if err != nil {
+		apiError(c, 500, "Could not load poll")
+		return
+	}
+	var in reactionInput
+	if c.ShouldBindJSON(&in) != nil || in.Emoji == "" {
+		apiError(c, 400, "Choose a reaction")
+		return
+	}
+	if poll.Reactions == nil {
+		poll.Reactions = map[string]int64{"👍": 0, "😄": 0, "🎯": 0, "🚀": 0}
+	}
+	if _, ok := poll.Reactions[in.Emoji]; !ok {
+		poll.Reactions[in.Emoji] = 0
+	}
+	poll.Reactions[in.Emoji]++
+	if _, err := a.db.Collection("polls").UpdateOne(c, bson.M{"shareId": poll.ShareID}, bson.M{"$set": bson.M{"reactions": poll.Reactions}}); err != nil {
+		apiError(c, 500, "Could not save reaction")
+		return
+	}
+	c.JSON(200, gin.H{"reactions": poll.Reactions})
 }
 
 func (a *App) vote(c *gin.Context) {
@@ -106,6 +367,12 @@ func (a *App) vote(c *gin.Context) {
 	if c.ShouldBindJSON(&in) != nil || in.OptionID == "" {
 		apiError(c, 400, "Select a valid option")
 		return
+	}
+	if poll.AllowComments {
+		if _, ok := a.requestUserID(c); !ok {
+			apiError(c, 401, "Sign in to vote on this poll")
+			return
+		}
 	}
 	valid := false
 	for _, option := range poll.Options {
@@ -200,17 +467,67 @@ func (a *App) insights(c *gin.Context) {
 	if err != nil {
 		lastMinute = 0
 	}
-	leader := poll.Options[0]
-	for _, option := range poll.Options[1:] {
+	leader := model.Option{}
+	if len(poll.Options) > 0 {
+		leader = poll.Options[0]
+	}
+	second := model.Option{}
+	for _, option := range poll.Options {
 		if option.Votes > leader.Votes {
+			second = leader
 			leader = option
+			continue
+		}
+		if second.Votes < option.Votes && option.ID != leader.ID {
+			second = option
 		}
 	}
 	total := int64(0)
 	for _, option := range poll.Options {
 		total += option.Votes
 	}
-	c.JSON(200, gin.H{"responsesLastMinute": lastMinute, "total": total, "leader": leader.Text, "leaderVotes": leader.Votes})
+	winnerPercent := int64(0)
+	if total > 0 {
+		winnerPercent = int64((float64(leader.Votes) / float64(total)) * 100)
+	}
+	margin := int64(0)
+	if leader.Votes > 0 && second.Votes > 0 {
+		margin = leader.Votes - second.Votes
+	}
+	closeRace := second.Votes > 0 && leader.Votes-second.Votes <= max(2, int64(float64(total)*0.12))
+	engagement := "low"
+	switch {
+	case lastMinute >= 5:
+		engagement = "high"
+	case lastMinute >= 2:
+		engagement = "steady"
+	}
+	summary := "No votes yet — this poll is waiting for its first responder."
+	switch {
+	case total == 0:
+		summary = "No votes yet — this poll is waiting for its first responder."
+	case closeRace && total > 0:
+		summary = "This is a close race. The top two choices are nearly tied and the outcome can still shift."
+	case leader.Votes == total && total > 0:
+		summary = "This poll has a clear winner and the room is already aligned behind one option."
+	case winnerPercent >= 60:
+		summary = "The current leader is pulling away and is clearly setting the tone for the room."
+	case winnerPercent >= 45:
+		summary = "The room is leaning toward one option, but there is still enough split sentiment to keep it interesting."
+	default:
+		summary = "Responses are spread across the board, which suggests the audience is still deciding."
+	}
+	c.JSON(200, gin.H{
+		"responsesLastMinute": lastMinute,
+		"total":               total,
+		"leader":              leader.Text,
+		"leaderVotes":         leader.Votes,
+		"winnerPercent":       winnerPercent,
+		"margin":              margin,
+		"closeRace":           closeRace,
+		"engagement":          engagement,
+		"summary":             summary,
+	})
 }
 func (a *App) live(c *gin.Context) {
 	if _, err := a.findPoll(c, c.Param("shareID")); err != nil {
