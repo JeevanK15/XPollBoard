@@ -134,12 +134,12 @@ Set production values for `MONGO_URI`, `MONGO_DATABASE`, `REDIS_ADDR`, `JWT_SECR
 The API container does not include MongoDB or Redis. In Render, create or connect these managed services before deploying the API:
 
 1. Create a MongoDB Atlas database and copy its connection string into `MONGO_URI` (for example, `mongodb+srv://...`). Allow the Render service's outbound access in the Atlas network settings.
-2. Create a Redis service and set `REDIS_ADDR` to the Redis host and port supplied by that service. If the provider supplies a Redis URL instead of `host:port`, update the API configuration to use the provider's address format before deploying.
+2. Create a free Upstash Redis database and set `REDIS_URL` to its TLS connection URL. The API accepts `rediss://default:<password>@<host>:6379` URLs. Alternatively, set `REDIS_ADDR` to a non-TLS `host:port` supplied by another Redis provider.
 3. Add these API environment variables in Render:
    - `APP_ENV=production`
    - `MONGO_URI=<MongoDB Atlas connection string>`
    - `MONGO_DATABASE=pulseboard`
-   - `REDIS_ADDR=<managed Redis host:port>`
+   - `REDIS_URL=<Upstash Redis TLS URL>`
    - `JWT_SECRET=<long random secret>`
    - `CORS_ORIGIN=https://<your-frontend-domain>`
 

@@ -35,7 +35,14 @@ func serviceEnv(key, fallback string, production bool) string {
 }
 
 func redisOptions(production bool) *redis.Options {
-	if redisURL := os.Getenv("REDIS_URL"); redisURL != "" {
+	redisURL := os.Getenv("REDIS_URL")
+	if redisURL == "" {
+		redisAddress := os.Getenv("REDIS_ADDR")
+		if strings.HasPrefix(redisAddress, "redis://") || strings.HasPrefix(redisAddress, "rediss://") {
+			redisURL = redisAddress
+		}
+	}
+	if redisURL != "" {
 		options, err := redis.ParseURL(redisURL)
 		if err != nil {
 			log.Fatalf("invalid REDIS_URL: %v", err)
