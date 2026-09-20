@@ -5194,10 +5194,17 @@ html[data-theme="dark"] .profile-page {
   }
 }
 
-/* Voting cards use the percentage as a calm full-card progress fill. */
+/* Voting cards keep the result fill quiet and make the chosen card unmistakable. */
 .poll-page .choice {
   isolation: isolate;
   overflow: hidden;
+  min-height: 78px;
+  padding: 15px 18px;
+  border: 2px solid var(--line);
+  background: var(--surface-elevated);
+  box-shadow: 0 3px 0 rgba(19, 36, 56, 0.1);
+  transform: none;
+  transition: border-color 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease;
 }
 
 .poll-page .choice i {
@@ -5206,7 +5213,7 @@ html[data-theme="dark"] .profile-page {
   width: 0;
   height: 100%;
   background: var(--choice-fill);
-  transition: width 0.25s ease;
+  transition: width 0.3s ease;
 }
 
 .poll-page .choice-index,
@@ -5217,12 +5224,9 @@ html[data-theme="dark"] .profile-page {
 }
 
 .poll-page .choice.selected {
-  border: 3px solid var(--choice-color);
-  box-shadow:
-    0 0 0 3px color-mix(in srgb, var(--choice-color) 28%, transparent),
-    5px 5px 0 color-mix(in srgb, var(--choice-color) 38%, transparent),
-    inset 8px 0 0 var(--choice-color);
-  transform: translateY(-1px);
+  border-color: var(--choice-color);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--choice-color) 22%, transparent), 0 4px 0 color-mix(in srgb, var(--choice-color) 34%, transparent);
+  transform: translateY(-2px);
 }
 
 .poll-page .choice.selected i {
@@ -5236,35 +5240,35 @@ html[data-theme="dark"] .profile-page {
 
 .poll-page .choice.option-color-0 {
   --choice-color: #3b82f6;
-  --choice-fill: rgba(59, 130, 246, 0.2);
+  --choice-fill: rgba(59, 130, 246, 0.14);
   --choice-hover-fill: rgba(59, 130, 246, 0.28);
   --choice-selected-fill: rgba(59, 130, 246, 0.46);
 }
 
 .poll-page .choice.option-color-1 {
   --choice-color: #14b8a6;
-  --choice-fill: rgba(20, 184, 166, 0.2);
+  --choice-fill: rgba(20, 184, 166, 0.14);
   --choice-hover-fill: rgba(20, 184, 166, 0.28);
   --choice-selected-fill: rgba(20, 184, 166, 0.46);
 }
 
 .poll-page .choice.option-color-2 {
   --choice-color: #f59e0b;
-  --choice-fill: rgba(245, 158, 11, 0.2);
+  --choice-fill: rgba(245, 158, 11, 0.14);
   --choice-hover-fill: rgba(245, 158, 11, 0.28);
   --choice-selected-fill: rgba(245, 158, 11, 0.46);
 }
 
 .poll-page .choice.option-color-3 {
   --choice-color: #ec4899;
-  --choice-fill: rgba(236, 72, 153, 0.2);
+  --choice-fill: rgba(236, 72, 153, 0.14);
   --choice-hover-fill: rgba(236, 72, 153, 0.28);
   --choice-selected-fill: rgba(236, 72, 153, 0.46);
 }
 
 .poll-page .choice.option-color-4 {
   --choice-color: #8b5cf6;
-  --choice-fill: rgba(139, 92, 246, 0.2);
+  --choice-fill: rgba(139, 92, 246, 0.14);
   --choice-hover-fill: rgba(139, 92, 246, 0.28);
   --choice-selected-fill: rgba(139, 92, 246, 0.46);
 }
@@ -5278,6 +5282,12 @@ html[data-theme="dark"] .profile-page {
   border-color: var(--choice-color);
   background: var(--choice-color);
   color: #ffffff;
+}
+
+.poll-page .choice:not(.selected):hover {
+  border-color: color-mix(in srgb, var(--choice-color) 60%, var(--line));
+  box-shadow: 0 4px 0 color-mix(in srgb, var(--choice-color) 18%, transparent);
+  transform: translateY(-1px);
 }
 
 .poll-page .choice.selected > b {

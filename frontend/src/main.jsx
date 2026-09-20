@@ -1839,7 +1839,9 @@ function PollPageClean({ shareID, logout }) {
               const percent = total ? Math.round((option.votes / total) * 100) : 0;
               return (
                   <button key={option.id} className={`choice option-color-${index % 5} ${voted.includes(option.id) ? "selected" : ""}`} disabled={!poll.active} onClick={() => vote(option.id)}>
-                  <span className="choice-index">{String(index + 1).padStart(2, "0")}</span>
+                  <span className="choice-index">
+                    {voted.includes(option.id) ? <FiCheck size={15} strokeWidth={3} /> : String(index + 1).padStart(2, "0")}
+                  </span>
                   <div className="choice-body">
                     <span className="choice-label">{option.text}</span>
                   </div>
