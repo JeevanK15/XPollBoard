@@ -221,7 +221,7 @@ function MobileNavMenu({ children }) {
         {open ? <FiX size={18} /> : <FiMenu size={18} />}
         <span>Menu</span>
       </button>
-      {open && <div className="mobile-nav-panel" onClick={(event) => { if (event.target.closest("a, button")) setOpen(false); }}>{children}</div>}
+      {open && <div className="mobile-nav-panel" onClick={(event) => { if (event.target.closest("a")) setOpen(false); }}>{children}</div>}
     </div>
   );
 }
@@ -253,7 +253,13 @@ function ProfilePage({ logout }) {
     };
     load();
     const recoverVoteHistory = async () => {
-      const existingHistory = JSON.parse(localStorage.getItem("pulseboard_vote_history") || "[]");
+      let existingHistory = [];
+      try {
+        const storedHistory = JSON.parse(localStorage.getItem("pulseboard_vote_history") || "[]");
+        existingHistory = Array.isArray(storedHistory) ? storedHistory : [];
+      } catch {
+        localStorage.removeItem("pulseboard_vote_history");
+      }
       const votedPolls = Object.keys(localStorage)
         .filter((key) => key.startsWith("voted_"))
         .map((key) => ({ shareId: key.slice(6), optionId: localStorage.getItem(key) }))
@@ -338,6 +344,9 @@ function ProfilePage({ logout }) {
 
           <button type="button" className="primary" onClick={handleSaveName} disabled={saving}>
             <FiSave size={14} /> {saving ? "Saving..." : "Save profile"}
+          </button>
+          <button type="button" className="danger-button profile-signout" onClick={logout}>
+            <FiLogOut size={14} /> Sign out
           </button>
         </aside>
 
@@ -426,7 +435,6 @@ function EditPollDialog({ poll, busy, onCancel, onSaved }) {
       onSaved(updated);
     } catch (e) {
       setError(e.message);
-      setNotice(e.message);
       setNotice(e.message);
     }
   };
@@ -780,6 +788,7 @@ function CreatePollPage({ logout }) {
           maxSelections: allowMultiple ? Math.min(maxSelections, options.length) : 1,
         }),
       });
+      sessionStorage.setItem("pulseboard_notice", JSON.stringify({ message: "Poll created", tone: "success" }));
       navigateTo(`/p/${poll.shareId}`);
     } catch (e) {
       setError(e.message);
@@ -1079,6 +1088,7 @@ function Dashboard({ logout }) {
         method: "POST",
         body: JSON.stringify({ question, options, template, visibility, password: visibility === "private" ? privatePassword : "" }),
       });
+      sessionStorage.setItem("pulseboard_notice", JSON.stringify({ message: "Poll created", tone: "success" }));
       navigateTo(`/p/${poll.shareId}`);
     } catch (e) {
       setError(e.message);
@@ -1108,9 +1118,12 @@ function Dashboard({ logout }) {
     try {
       await navigator.clipboard.writeText(`${location.origin}/p/${shareId}`);
       setCopiedShareId(shareId);
+      showNotice("Poll link copied to clipboard", "info");
       setTimeout(() => setCopiedShareId((current) => (current === shareId ? null : current)), 1500);
     } catch {
-      setError("Could not copy the poll link");
+      const message = "Could not copy the poll link";
+      setError(message);
+      showNotice(message, "error");
     }
   };
   const openEditPoll = (event, poll) => {
@@ -1136,6 +1149,7 @@ function Dashboard({ logout }) {
       setPendingDelete(null);
     } catch (e) {
       setError(e.message);
+      showNotice(e.message, "error");
     } finally {
       setDeleting("");
     }
@@ -1151,6 +1165,7 @@ function Dashboard({ logout }) {
       showNotice(nextActive ? "Poll activated" : "Poll deactivated", nextActive ? "success" : "danger");
     } catch (e) {
       setError(e.message);
+      showNotice(e.message, "error");
     }
   };
   const saveEditedPoll = (updated) => {
@@ -1434,6 +1449,7 @@ function PollPage({ shareID }) {
       setVoted(optionId);
     } catch (e) {
       setError(e.message);
+      showNotice(e.message, "error");
     }
   };
   const deletePoll = async () => {
@@ -1489,6 +1505,23 @@ function PollPageClean({ shareID, logout }) {
   const [accessPassword, setAccessPassword] = useState("");
   const [accessError, setAccessError] = useState("");
   const [notice, setNotice] = useState("");
+  const [noticeTone, setNoticeTone] = useState("success");
+  const showNotice = (message, tone = "success") => {
+    setNoticeTone(tone);
+    setNotice(message);
+  };
+  useEffect(() => {
+    const pendingNotice = sessionStorage.getItem("pulseboard_notice");
+    if (!pendingNotice) return;
+    try {
+      const parsed = JSON.parse(pendingNotice);
+      setNoticeTone(parsed.tone || "success");
+      setNotice(parsed.message || "");
+    } catch {
+      setNotice(pendingNotice);
+    }
+    sessionStorage.removeItem("pulseboard_notice");
+  }, []);
   const loadPollAndMeta = async () => {
     try {
       const loaded = await request(`/polls/${shareID}`);
@@ -1565,12 +1598,13 @@ function PollPageClean({ shareID, logout }) {
       if (navigator.share) await navigator.share({ title: poll.question, text: "Vote in this XPollBoard poll", url: location.href });
       else await navigator.clipboard.writeText(location.href);
       setCopied(true);
+      showNotice(navigator.share ? "Poll shared" : "Poll link copied", "info");
       setTimeout(() => setCopied(false), 2200);
-    } catch (e) { if (e.name !== "AbortError") setError("Could not share this poll"); }
+    } catch (e) { if (e.name !== "AbortError") { setError("Could not share this poll"); showNotice("Could not share this poll", "error"); } }
   };
   const copyLink = async () => {
-    try { await navigator.clipboard.writeText(location.href); setCopied(true); setTimeout(() => setCopied(false), 2200); }
-    catch { setError("Could not copy the poll link"); }
+    try { await navigator.clipboard.writeText(location.href); setCopied(true); showNotice("Poll link copied", "info"); setTimeout(() => setCopied(false), 2200); }
+    catch { setError("Could not copy the poll link"); showNotice("Could not copy the poll link", "error"); }
   };
   const vote = async (optionId) => {
     const nextSelected = poll?.allowMultiple
@@ -1613,7 +1647,7 @@ function PollPageClean({ shareID, logout }) {
       const withoutPoll = voteHistory.filter((entry) => entry.pollId !== shareID);
       localStorage.setItem("pulseboard_vote_history", JSON.stringify([nextVote, ...withoutPoll].slice(0, 20)));
       setVoted(nextSelected);
-      setNotice("Your vote was recorded");
+      showNotice("Your vote was recorded");
     } catch (e) {
       setPoll((current) => current ? { ...current, options: current.options.map((option) => {
         if (nextSelected.includes(option.id) && !previousOptionIds.includes(option.id)) return { ...option, votes: Math.max(0, Number(option.votes) - 1) };
@@ -1621,6 +1655,7 @@ function PollPageClean({ shareID, logout }) {
         return option;
       }) } : current);
       setError(e.message);
+      showNotice(e.message, "error");
     }
   };
   const unlockPoll = async (event) => {
@@ -1630,10 +1665,11 @@ function PollPageClean({ shareID, logout }) {
       await request(`/polls/${shareID}/access`, { method: "POST", body: JSON.stringify({ password: accessPassword }) });
       sessionStorage.setItem(`private_access_${shareID}`, "granted");
       setAccessRequired(false);
-      setNotice("Poll unlocked");
+      showNotice("Poll unlocked");
       await loadPollAndMeta();
     } catch (e) {
       setAccessError(e.message);
+      showNotice(e.message, "error");
     }
   };
   const submitComment = async (event) => {
@@ -1655,8 +1691,10 @@ function PollPageClean({ shareID, logout }) {
       localStorage.setItem("pulseboard_comment_history", JSON.stringify(history.slice(0, 20)));
       setComments((current) => [...current, result]);
       setCommentDraft("");
+      showNotice("Comment posted");
     } catch (e) {
       setError(e.message);
+      showNotice(e.message, "error");
     }
   };
   const deletePoll = () => setPendingDelete(true);
@@ -1666,7 +1704,7 @@ function PollPageClean({ shareID, logout }) {
       await request(`/polls/${shareID}`, { method: "DELETE" });
       sessionStorage.setItem("pulseboard_notice", JSON.stringify({ message: "Poll deleted", tone: "danger" }));
       navigateTo("/");
-    } catch (e) { setError(e.message); setDeleting(false); }
+    } catch (e) { setError(e.message); showNotice(e.message, "error"); setDeleting(false); }
   };
   const togglePoll = async () => {
     setToggling(true);
@@ -1674,10 +1712,11 @@ function PollPageClean({ shareID, logout }) {
       const active = !poll.active;
       await request(`/polls/${shareID}/${active ? "activate" : "close"}`, { method: "POST" });
       setPoll((current) => ({ ...current, active }));
-    } catch (e) { setError(e.message); }
+      showNotice(active ? "Poll activated" : "Poll deactivated", active ? "success" : "warning");
+    } catch (e) { setError(e.message); showNotice(e.message, "error"); }
     finally { setToggling(false); }
   };
-  if (error) return <main className="poll-page"><a className="brand" href="/">XPoll<span>Board</span></a><p className="error" role="alert">{error}</p></main>;
+  if (error) return <main className="poll-page"><Notice message={notice || error} tone={notice ? noticeTone : "error"} /><a className="brand" href="/">XPoll<span>Board</span></a><p className="error" role="alert">{error}</p></main>;
   if (accessRequired) {
     return (
       <main className="poll-page">
@@ -1719,7 +1758,7 @@ function PollPageClean({ shareID, logout }) {
 
   return (
     <main className="poll-page">
-      <Notice message={notice} tone="success" />
+      <Notice message={notice} tone={noticeTone} />
       <nav className="topbar poll-topbar">
         <a className="brand" href="/">XPoll<span>Board</span></a>
         <div className="nav-tools poll-nav-actions">
@@ -1799,11 +1838,10 @@ function PollPageClean({ shareID, logout }) {
             {poll.options.map((option, index) => {
               const percent = total ? Math.round((option.votes / total) * 100) : 0;
               return (
-                  <button key={option.id} className={`choice ${voted.includes(option.id) ? "selected" : ""}`} disabled={!poll.active} onClick={() => vote(option.id)}>
+                  <button key={option.id} className={`choice option-color-${index % 5} ${voted.includes(option.id) ? "selected" : ""}`} disabled={!poll.active} onClick={() => vote(option.id)}>
                   <span className="choice-index">{String(index + 1).padStart(2, "0")}</span>
                   <div className="choice-body">
                     <span className="choice-label">{option.text}</span>
-                    <small>{voted.includes(option.id) ? "Your selection" : "Select option"}</small>
                   </div>
                   <b>{percent}%</b>
                   <i style={{ width: `${percent}%` }} />

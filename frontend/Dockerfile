@@ -1,7 +1,8 @@
 FROM node:22-alpine AS build
 WORKDIR /app
 COPY package.json ./
-RUN npm install
+COPY pnpm-lock.yaml ./
+RUN corepack enable && corepack install --global pnpm@10 && pnpm install --frozen-lockfile
 COPY . .
 ARG VITE_API_URL
 ENV VITE_API_URL=$VITE_API_URL

@@ -5107,3 +5107,179 @@ html[data-theme="dark"] .profile-page {
     flex: 0 0 17px;
   }
 }
+
+/* Final mobile usability pass: notices and result choices use the available width. */
+@media (max-width: 720px) {
+  .app-notice {
+    left: 12px;
+    right: 12px;
+    top: 112px;
+    width: auto;
+    max-width: none;
+    justify-content: flex-start;
+    padding: 11px 12px;
+    transform: none;
+    animation-name: notice-enter-mobile;
+  }
+
+  .app-notice strong {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+
+  .profile-signout {
+    width: 100%;
+    margin-top: 10px;
+  }
+
+  .poll-page .choice {
+    grid-template-columns: 30px minmax(0, 1fr) auto;
+    min-height: 62px;
+    padding: 10px 9px 14px;
+  }
+
+  .poll-page .choice-index {
+    width: 26px;
+    height: 26px;
+  }
+
+  .poll-page .choice-label {
+    font-size: 0.88rem;
+  }
+
+  .poll-page .choice-body small {
+    font-size: 0.58rem;
+  }
+
+  .poll-page .choice b {
+    min-width: 42px;
+    font-size: 0.9rem;
+  }
+}
+
+@keyframes notice-enter-mobile {
+  from { opacity: 0; transform: translateY(-10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@media (max-width: 720px) {
+  .app-notice {
+    display: flex;
+    align-items: flex-start;
+    width: calc(100% - 24px);
+    min-height: 48px;
+    box-sizing: border-box;
+  }
+
+  .app-notice strong {
+    flex: 1;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
+
+  .dashboard-notices {
+    left: 12px;
+    right: 12px;
+    width: auto;
+    max-width: none;
+    transform: none;
+  }
+
+  .dashboard-notices .toast {
+    width: 100%;
+    min-width: 0;
+    max-width: none;
+    overflow-wrap: anywhere;
+  }
+}
+
+/* Voting cards use the percentage as a calm full-card progress fill. */
+.poll-page .choice {
+  isolation: isolate;
+  overflow: hidden;
+}
+
+.poll-page .choice i {
+  inset: 0 auto 0 0;
+  z-index: 0;
+  width: 0;
+  height: 100%;
+  background: var(--choice-fill);
+  transition: width 0.25s ease;
+}
+
+.poll-page .choice-index,
+.poll-page .choice-body,
+.poll-page .choice > b {
+  position: relative;
+  z-index: 1;
+}
+
+.poll-page .choice.selected {
+  border: 3px solid var(--choice-color);
+  box-shadow:
+    0 0 0 3px color-mix(in srgb, var(--choice-color) 28%, transparent),
+    5px 5px 0 color-mix(in srgb, var(--choice-color) 38%, transparent),
+    inset 8px 0 0 var(--choice-color);
+  transform: translateY(-1px);
+}
+
+.poll-page .choice.selected i {
+  background: var(--choice-selected-fill);
+  opacity: 1;
+}
+
+.poll-page .choice:hover:not(:disabled) i {
+  background: var(--choice-hover-fill);
+}
+
+.poll-page .choice.option-color-0 {
+  --choice-color: #3b82f6;
+  --choice-fill: rgba(59, 130, 246, 0.2);
+  --choice-hover-fill: rgba(59, 130, 246, 0.28);
+  --choice-selected-fill: rgba(59, 130, 246, 0.46);
+}
+
+.poll-page .choice.option-color-1 {
+  --choice-color: #14b8a6;
+  --choice-fill: rgba(20, 184, 166, 0.2);
+  --choice-hover-fill: rgba(20, 184, 166, 0.28);
+  --choice-selected-fill: rgba(20, 184, 166, 0.46);
+}
+
+.poll-page .choice.option-color-2 {
+  --choice-color: #f59e0b;
+  --choice-fill: rgba(245, 158, 11, 0.2);
+  --choice-hover-fill: rgba(245, 158, 11, 0.28);
+  --choice-selected-fill: rgba(245, 158, 11, 0.46);
+}
+
+.poll-page .choice.option-color-3 {
+  --choice-color: #ec4899;
+  --choice-fill: rgba(236, 72, 153, 0.2);
+  --choice-hover-fill: rgba(236, 72, 153, 0.28);
+  --choice-selected-fill: rgba(236, 72, 153, 0.46);
+}
+
+.poll-page .choice.option-color-4 {
+  --choice-color: #8b5cf6;
+  --choice-fill: rgba(139, 92, 246, 0.2);
+  --choice-hover-fill: rgba(139, 92, 246, 0.28);
+  --choice-selected-fill: rgba(139, 92, 246, 0.46);
+}
+
+.poll-page .choice .choice-index,
+.poll-page .choice > b {
+  color: var(--choice-color);
+}
+
+.poll-page .choice.selected .choice-index {
+  border-color: var(--choice-color);
+  background: var(--choice-color);
+  color: #ffffff;
+}
+
+.poll-page .choice.selected > b {
+  color: var(--choice-color);
+}
